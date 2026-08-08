@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AnimatePresence, motion } from 'motion/react'
-import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, X, Grid3X3 } from 'lucide-react'
 import { Button } from '@client/components/ui'
 import MonthGrid from '@client/components/planner/MonthGrid'
 import AgendaPanel from '@client/components/planner/AgendaPanel'
@@ -10,7 +10,8 @@ import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@client/h
 import { useKeyboard } from '@client/hooks/useKeyboard'
 import { useSettings } from '@client/hooks/useSettings'
 import { readSetting } from '@client/lib/settings'
-import { MONTHS, monthGrid, monthRange, toISO, fromISO } from '@client/lib/date'
+import { cn } from '@client/lib/utils'
+import { MONTHS, monthGrid, monthRange, toISO, fromISO, dowLabels } from '@client/lib/date'
 
 export default function Planner() {
   const today = new Date()
@@ -18,6 +19,7 @@ export default function Planner() {
   const [selected, setSelected] = useState(toISO(today))
   const [editing, setEditing] = useState<any>(null)
   const [showEditor, setShowEditor] = useState(false)
+  const [view, setView] = useState<'month' | 'year'>('month')
 
   // The palette's "New task" command arrives as /planner?new=1.
   const [searchParams, setSearchParams] = useSearchParams()
@@ -121,23 +123,36 @@ export default function Planner() {
       <section className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl bg-surface-2 p-4 ring-1 ring-border">
         <div className="mb-3 flex items-center justify-between gap-3">
           <div className="flex items-baseline gap-2">
-            <h2 className="text-[17px] font-semibold tracking-tight">{MONTHS[cursor.m]}</h2>
+            {view === 'month' && <h2 className="text-[17px] font-semibold tracking-tight">{MONTHS[cursor.m]}</h2>}
             <span className="text-[17px] font-semibold text-muted-foreground tabular-nums">{cursor.y}</span>
           </div>
 
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" onClick={goToday} className="h-8 text-[12px]">Today</Button>
+            <button
+              onClick={() => setView(view === 'month' ? 'year' : 'month')}
+              aria-label={view === 'month' ? 'Show year view' : 'Show month view'}
+              title={view === 'month' ? 'Year view' : 'Month view'}
+              className={cn(
+                'grid h-8 w-8 place-items-center rounded-lg transition',
+                view === 'year'
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-surface-3 text-muted-foreground hover:text-foreground'
+              )}
+            >
+              <Grid3X3 className="h-4 w-4" />
+            </button>
             <div className="flex items-center gap-0.5">
               <button
-                onClick={() => shiftMonth(-1)}
-                aria-label="Previous month"
+                onClick={() => view === 'year' ? setCursor(c => ({ ...c, y: c.y - 1 })) : shiftMonth(-1)}
+                aria-label={view === 'year' ? 'Previous year' : 'Previous month'}
                 className="grid h-8 w-8 place-items-center rounded-lg bg-surface-3 text-muted-foreground transition hover:text-foreground"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
               <button
-                onClick={() => shiftMonth(1)}
-                aria-label="Next month"
+                onClick={() => view === 'year' ? setCursor(c => ({ ...c, y: c.y + 1 })) : shiftMonth(1)}
+                aria-label={view === 'year' ? 'Next year' : 'Next month'}
                 className="grid h-8 w-8 place-items-center rounded-lg bg-surface-3 text-muted-foreground transition hover:text-foreground"
               >
                 <ChevronRight className="h-4 w-4" />
@@ -149,24 +164,40 @@ export default function Planner() {
           </div>
         </div>
 
-        <MonthGrid
-          cells={cells}
-          tasksByDate={tasksByDate}
-          selected={selected}
-          onSelect={setSelected}
-          mondayFirst={mondayFirst}
-        />
+        {view === 'month' ? (
+          <MonthGrid
+            cells={cells}
+            tasksByDate={tasksByDate}
+            selected={selected}
+            onSelect={setSelected}
+            mondayFirst={mondayFirst}
+          />
+        ) : (
+          <YearGrid
+            year={cursor.y}
+            selected={selected}
+            mondayFirst={mondayFirst}
+            onSelectDay={(iso) => {
+              setSelected(iso)
+              const d = fromISO(iso)
+              setCursor({ y: d.getFullYear(), m: d.getMonth() })
+              setView('month')
+            }}
+          />
+        )}
       </section>
 
-      {/* Agenda */}
-      <AgendaPanel
-        iso={selected}
-        tasks={dayTasks}
-        onShift={shiftDay}
-        onToday={goToday}
-        onSelectTask={openTask}
-        onToggleTask={toggle}
-      />
+      {/* Agenda — hidden in year view */}
+      {view === 'month' && (
+        <AgendaPanel
+          iso={selected}
+          tasks={dayTasks}
+          onShift={shiftDay}
+          onToday={goToday}
+          onSelectTask={openTask}
+          onToggleTask={toggle}
+        />
+      )}
 
       {/* Editor overlay */}
       <AnimatePresence>
@@ -218,6 +249,56 @@ export default function Planner() {
           </>
         )}
       </AnimatePresence>
+    </div>
+  )
+}
+
+function YearGrid({
+  year, selected, mondayFirst, onSelectDay,
+}: {
+  year: number
+  selected: string
+  mondayFirst: boolean
+  onSelectDay: (iso: string) => void
+}) {
+  const todayStr = toISO(new Date())
+
+  return (
+    <div className="grid min-h-0 flex-1 grid-cols-3 gap-4 overflow-y-auto py-1 lg:grid-cols-4">
+      {MONTHS.map((monthName, monthIdx) => {
+        const cells = monthGrid(year, monthIdx, mondayFirst)
+        return (
+          <div key={monthIdx}>
+            <p className="mb-1.5 text-[11px] font-semibold text-muted-foreground">{monthName}</p>
+            <div className="grid grid-cols-7 gap-px text-[9px]">
+              {dowLabels(mondayFirst).map(d => (
+                <span key={d} className="text-center text-[8px] text-muted-foreground/60">
+                  {d.slice(0, 1)}
+                </span>
+              ))}
+              {cells.map(cell => {
+                const isToday = cell.iso === todayStr
+                const isSelected = cell.iso === selected
+                return (
+                  <button
+                    key={cell.iso}
+                    onClick={() => onSelectDay(cell.iso)}
+                    className={cn(
+                      'grid h-5 w-5 place-items-center rounded-sm text-[9px] transition',
+                      !cell.inMonth && 'text-muted-foreground/30',
+                      cell.inMonth && !isToday && !isSelected && 'text-muted-foreground hover:bg-surface-3',
+                      isToday && !isSelected && 'font-bold text-primary',
+                      isSelected && 'bg-primary text-primary-foreground font-bold',
+                    )}
+                  >
+                    {cell.day}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
