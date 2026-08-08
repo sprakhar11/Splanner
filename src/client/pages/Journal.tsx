@@ -1,12 +1,20 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { Plus, Star, Search, X, BookOpen } from 'lucide-react'
+import { Plus, Star, Search, X, BookOpen, ExternalLink, Copy } from 'lucide-react'
 import { Input } from '@client/components/ui'
 import { useNotes, useCreateNote, useUpdateNote, useDeleteNote } from '@client/hooks/useNotes'
+import { useSettings } from '@client/hooks/useSettings'
 import { useKeyboard } from '@client/hooks/useKeyboard'
 import { cn } from '@client/lib/utils'
 
-const TYPES = ['CONCEPT', 'INTERVIEW_QUESTION', 'CODE_SNIPPET', 'MISTAKE', 'GENERAL']
+const DEFAULT_NOTE_TYPES = ['CONCEPT', 'INTERVIEW_QUESTION', 'CODE_SNIPPET', 'MISTAKE', 'GENERAL']
+
+function useNoteTypes() {
+  const { data: settings } = useSettings()
+  let parsed: string[] = []
+  try { parsed = settings?.noteTypes ? JSON.parse(settings.noteTypes) : [] } catch {}
+  return parsed.length > 0 ? parsed : DEFAULT_NOTE_TYPES
+}
 
 const TYPE_COLOR: Record<string, string> = {
   CONCEPT: 'var(--ev-blue)',
@@ -26,6 +34,7 @@ export default function Journal() {
   const createNote = useCreateNote()
   const updateNote = useUpdateNote()
   const deleteNote = useDeleteNote()
+  const noteTypes = useNoteTypes()
 
   const [search, setSearch] = useState('')
   const [type, setType] = useState('')
@@ -71,7 +80,7 @@ export default function Journal() {
 
         <select value={type} onChange={e => setType(e.target.value)} className={selectClass}>
           <option value="">All types</option>
-          {TYPES.map(t => <option key={t} value={t}>{pretty(t)}</option>)}
+          {noteTypes.map(t => <option key={t} value={t}>{pretty(t)}</option>)}
         </select>
 
         <button
@@ -137,7 +146,7 @@ export default function Journal() {
                     </div>
                     {n.content && (
                       <p className="mt-1.5 line-clamp-2 text-[11.5px] leading-relaxed text-muted-foreground">
-                        {n.content}
+                        <ContentWithLinks text={n.content} />
                       </p>
                     )}
                     <div className="mt-2.5 flex items-center gap-2">
@@ -171,11 +180,12 @@ export default function Journal() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 8 }}
               transition={{ type: 'spring', stiffness: 460, damping: 34 }}
-              className="absolute left-1/2 top-1/2 z-50 w-[440px] -translate-x-1/2 -translate-y-1/2
-                         overflow-hidden rounded-2xl bg-popover shadow-2xl ring-1 ring-border"
+              className="absolute left-1/2 top-1/2 z-50 flex max-h-[92%] w-[750px] -translate-x-1/2 -translate-y-1/2
+                         flex-col overflow-hidden rounded-2xl bg-popover shadow-2xl ring-1 ring-border"
             >
               <NoteForm
                 note={editing}
+                noteTypes={noteTypes}
                 onSave={save}
                 onClose={close}
                 onDelete={id => { deleteNote.mutate(id); close() }}
@@ -189,8 +199,8 @@ export default function Journal() {
 }
 
 function NoteForm({
-  note, onSave, onClose, onDelete,
-}: { note: any; onSave: (d: any) => void; onClose: () => void; onDelete: (id: string) => void }) {
+  note, noteTypes, onSave, onClose, onDelete,
+}: { note: any; noteTypes: string[]; onSave: (d: any) => void; onClose: () => void; onDelete: (id: string) => void }) {
   const [f, setF] = useState({
     title: note?.title ?? '',
     content: note?.content ?? '',
@@ -209,6 +219,7 @@ function NoteForm({
         if (!f.title.trim()) return
         onSave({ ...f, tags: f.tags.split(',').map((t: string) => t.trim()).filter(Boolean) })
       }}
+      className="flex min-h-0 flex-1 flex-col"
     >
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h3 className="text-[14px] font-semibold">{note ? 'Edit note' : 'New note'}</h3>
@@ -231,23 +242,20 @@ function NoteForm({
         </div>
       </div>
 
-      <div className="space-y-4 p-4">
+      <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
         <Input placeholder="Note title" value={f.title} onChange={e => set('title', e.target.value)} autoFocus className="h-10 font-medium" />
 
-        <textarea
-          placeholder="Write in markdown…"
+        <RichEditor
           value={f.content}
-          onChange={e => set('content', e.target.value)}
-          rows={8}
-          className="w-full resize-y rounded-lg border border-input bg-background px-3 py-2 font-mono text-[12px]
-                     leading-relaxed placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60"
+          onChange={v => set('content', v)}
+          placeholder="Write here… URLs become clickable links (right-click to copy)"
         />
 
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <label className="text-[11px] font-medium text-muted-foreground">Type</label>
             <select value={f.type} onChange={e => set('type', e.target.value)} className={cn(selectClass, 'w-full')}>
-              {TYPES.map(t => <option key={t} value={t}>{pretty(t)}</option>)}
+              {noteTypes.map(t => <option key={t} value={t}>{pretty(t)}</option>)}
             </select>
           </div>
           <div className="space-y-1.5">
@@ -273,6 +281,9 @@ function NoteForm({
           ))}
         </div>
 
+      </div>
+
+      <div className="shrink-0 border-t border-border px-4 py-3">
         <button
           type="submit"
           disabled={!f.title.trim()}
@@ -283,5 +294,238 @@ function NoteForm({
         </button>
       </div>
     </form>
+  )
+}
+
+const URL_RE = /https?:\/\/[^\s<>"{}|\\^`\[\]]+/g
+
+/** Converts plain text to HTML with URLs wrapped in <a> tags. */
+function textToHtml(text: string): string {
+  // Escape HTML entities first
+  const escaped = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+  // Wrap URLs in anchor tags
+  const withLinks = escaped.replace(
+    /https?:\/\/[^\s&<>"{}|\\^`\[\]]+/g,
+    url => `<a href="${url}" target="_blank" rel="noreferrer" class="text-primary underline decoration-primary/40 hover:decoration-primary cursor-pointer">${url}</a>`
+  )
+  // Preserve newlines
+  return withLinks.replace(/\n/g, '<br>')
+}
+
+/** Extracts plain text from HTML (strips tags). */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<[^>]*>/g, '')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&nbsp;/g, ' ')
+}
+
+/**
+ * A contentEditable editor that renders URLs as clickable <a> tags inline.
+ * Right-click any link for the browser's native "Copy Link Address".
+ */
+function RichEditor({
+  value, onChange, placeholder,
+}: { value: string; onChange: (v: string) => void; placeholder?: string }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const isComposing = useRef(false)
+
+  // Sync external value into the div only when it genuinely differs
+  // (avoids resetting cursor on every keystroke).
+  useEffect(() => {
+    if (!ref.current) return
+    const current = htmlToText(ref.current.innerHTML)
+    if (current !== value) {
+      // Save and restore cursor position
+      const sel = window.getSelection()
+      const hadFocus = document.activeElement === ref.current
+      ref.current.innerHTML = textToHtml(value)
+      if (hadFocus && sel) {
+        // Move cursor to end after external update
+        const range = document.createRange()
+        range.selectNodeContents(ref.current)
+        range.collapse(false)
+        sel.removeAllRanges()
+        sel.addRange(range)
+      }
+    }
+  }, [value])
+
+  const handleInput = () => {
+    if (isComposing.current || !ref.current) return
+    const text = htmlToText(ref.current.innerHTML)
+    onChange(text)
+
+    // Re-render with links after a short delay so typing isn't interrupted
+    setTimeout(() => {
+      if (!ref.current || document.activeElement !== ref.current) return
+      const sel = window.getSelection()
+      if (!sel || sel.rangeCount === 0) return
+
+      // Save cursor offset
+      const range = sel.getRangeAt(0)
+      const preRange = document.createRange()
+      preRange.selectNodeContents(ref.current)
+      preRange.setEnd(range.startContainer, range.startOffset)
+      const cursorOffset = preRange.toString().length
+
+      // Re-render HTML with links
+      const newHtml = textToHtml(text)
+      if (ref.current.innerHTML !== newHtml) {
+        ref.current.innerHTML = newHtml
+        // Restore cursor
+        restoreCursor(ref.current, cursorOffset)
+      }
+    }, 300)
+  }
+
+  const handlePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault()
+    const text = e.clipboardData.getData('text/plain')
+    document.execCommand('insertText', false, text)
+  }
+
+  return (
+    <div className="relative">
+      <div
+        ref={ref}
+        contentEditable
+        onInput={handleInput}
+        onCompositionStart={() => { isComposing.current = true }}
+        onCompositionEnd={() => { isComposing.current = false; handleInput() }}
+        onPaste={handlePaste}
+        suppressContentEditableWarning
+        className="min-h-[320px] w-full rounded-lg border border-input bg-background px-3 py-2 font-mono text-[12px]
+                   leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/60 whitespace-pre-wrap break-words"
+        style={{ overflowY: 'auto', maxHeight: '50vh' }}
+      />
+      {!value && (
+        <p className="pointer-events-none absolute left-3 top-2 font-mono text-[12px] text-muted-foreground">
+          {placeholder}
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** Restores cursor to a character offset within a contentEditable element. */
+function restoreCursor(el: HTMLElement, offset: number) {
+  const sel = window.getSelection()
+  if (!sel) return
+
+  let remaining = offset
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT)
+  let node: Text | null = null
+
+  while ((node = walker.nextNode() as Text | null)) {
+    if (remaining <= node.length) {
+      const range = document.createRange()
+      range.setStart(node, remaining)
+      range.collapse(true)
+      sel.removeAllRanges()
+      sel.addRange(range)
+      return
+    }
+    remaining -= node.length
+  }
+
+  // If offset exceeds content, put cursor at end
+  const range = document.createRange()
+  range.selectNodeContents(el)
+  range.collapse(false)
+  sel.removeAllRanges()
+  sel.addRange(range)
+}
+
+/** Renders text with URLs as clickable links (for the card preview). */
+function ContentWithLinks({ text }: { text: string }) {
+  const parts: { text: string; isLink: boolean }[] = []
+  let last = 0
+  let match: RegExpExecArray | null
+
+  const re = new RegExp(URL_RE.source, 'g')
+  while ((match = re.exec(text)) !== null) {
+    if (match.index > last) parts.push({ text: text.slice(last, match.index), isLink: false })
+    parts.push({ text: match[0], isLink: true })
+    last = match.index + match[0].length
+  }
+  if (last < text.length) parts.push({ text: text.slice(last), isLink: false })
+
+  return (
+    <>
+      {parts.map((p, i) =>
+        p.isLink ? (
+          <a
+            key={i}
+            href={p.text}
+            target="_blank"
+            rel="noreferrer"
+            onClick={e => e.stopPropagation()}
+            className="text-primary underline decoration-primary/40 hover:decoration-primary"
+          >
+            {p.text.length > 50 ? p.text.slice(0, 47) + '...' : p.text}
+          </a>
+        ) : (
+          <span key={i}>{p.text}</span>
+        )
+      )}
+    </>
+  )
+}
+
+/** Extracts all URLs from text content. */
+function extractLinks(text: string): string[] {
+  return [...(text.match(URL_RE) || [])].filter((v, i, a) => a.indexOf(v) === i)
+}
+
+/** Copyable link chip shown below the editor. */
+function LinkChip({ url }: { url: string }) {
+  const [copied, setCopied] = useState(false)
+
+  const copy = () => {
+    navigator.clipboard.writeText(url).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+
+  const display = (() => {
+    try {
+      const u = new URL(url)
+      return u.hostname + (u.pathname.length > 1 ? u.pathname.slice(0, 30) : '')
+    } catch {
+      return url.slice(0, 40)
+    }
+  })()
+
+  return (
+    <div className="flex items-center gap-1.5 rounded-lg bg-surface-3 px-2.5 py-1.5 ring-1 ring-border">
+      <a
+        href={url}
+        target="_blank"
+        rel="noreferrer"
+        className="min-w-0 flex-1 truncate text-[11.5px] text-primary underline decoration-primary/40 hover:decoration-primary"
+        title={url}
+      >
+        <ExternalLink className="mr-1 inline h-3 w-3" />
+        {display}
+      </a>
+      <button
+        type="button"
+        onClick={copy}
+        title="Copy link"
+        className="shrink-0 rounded p-0.5 text-muted-foreground transition hover:text-foreground"
+      >
+        {copied
+          ? <span className="text-[10px] text-[var(--ev-green)]">Copied</span>
+          : <Copy className="h-3 w-3" />}
+      </button>
+    </div>
   )
 }

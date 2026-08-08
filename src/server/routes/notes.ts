@@ -11,7 +11,23 @@ notesRoute.get('/', async (c) => {
   const result = db.select().from(notes)
     .orderBy(desc(notes.isFavorite), desc(notes.updatedAt))
     .all()
-  return c.json(result)
+  const allTags = db.select().from(noteTags).all()
+  const byNote = new Map<string, string[]>()
+  for (const t of allTags) {
+    const list = byNote.get(t.noteId)
+    if (list) list.push(t.tag)
+    else byNote.set(t.noteId, [t.tag])
+  }
+  return c.json(result.map(n => ({ ...n, tags: byNote.get(n.id) ?? [] })))
+})
+
+notesRoute.get('/count-by-type', async (c) => {
+  const result = db.select().from(notes).all()
+  const counts: Record<string, number> = {}
+  for (const n of result) {
+    counts[n.type] = (counts[n.type] || 0) + 1
+  }
+  return c.json(counts)
 })
 
 notesRoute.get('/:id', async (c) => {
