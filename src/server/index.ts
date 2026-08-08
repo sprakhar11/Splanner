@@ -6,6 +6,7 @@ import { seedDatabase } from './db/seed'
 import { ensureSearchIndex } from './db/search-index'
 import { migrateInterviewItems } from './db/migrate-interview'
 import { topUpAllSeries } from './services/task-series'
+import { checkAndRollover } from './services/day-rollover'
 import { performAutoBackup } from './services/backup'
 
 // Routes
@@ -28,6 +29,8 @@ import backupRoute from './routes/backup'
 seedDatabase()
 migrateInterviewItems()
 ensureSearchIndex()
+// Roll incomplete tasks from past days to today.
+checkAndRollover()
 // Roll the recurrence horizon forward so open series never run dry.
 const series = topUpAllSeries()
 if (series.created > 0) {
@@ -38,6 +41,14 @@ performAutoBackup()
 const app = new Hono()
 
 app.use('*', cors({ origin: '*' }))
+
+// Day rollover middleware: checks once per calendar day whether incomplete
+// tasks need to move to today. Handles the case where the server stayed
+// running overnight (laptop idle) without a restart.
+app.use('*', async (c, next) => {
+  checkAndRollover()
+  await next()
+})
 
 // Health check
 app.get('/api/health', (c) => {
