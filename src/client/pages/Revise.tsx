@@ -80,17 +80,33 @@ export default function Revise() {
 
           <div className="rounded-xl bg-surface-2 p-4 ring-1 ring-border">
             <h3 className="mb-3 text-[14px] font-semibold">Mastery breakdown</h3>
-            <div className="space-y-2">
+            <div className="space-y-3">
               {[0, 1, 2, 3, 4, 5, 6].map(stage => {
-                const count = allRevisions.filter((r: any) => r.currentStepIndex === stage).length
+                const items = allRevisions.filter((r: any) => r.currentStepIndex === stage)
+                const count = items.length
                 const pct = allRevisions.length > 0 ? (count / allRevisions.length) * 100 : 0
                 return (
-                  <div key={stage} className="flex items-center gap-3 text-[11.5px]">
-                    <span className="w-14 text-muted-foreground">Stage {stage}</span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3">
-                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--primary)' }} />
+                  <div key={stage}>
+                    <div className="flex items-center gap-3 text-[11.5px]">
+                      <span className="w-14 text-muted-foreground">Stage {stage}</span>
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-surface-3">
+                        <div className="h-full rounded-full" style={{ width: `${pct}%`, background: 'var(--primary)' }} />
+                      </div>
+                      <span className="w-5 text-right tabular-nums text-muted-foreground">{count}</span>
                     </div>
-                    <span className="w-5 text-right tabular-nums text-muted-foreground">{count}</span>
+                    {count > 0 && (
+                      <div className="ml-[62px] mt-1.5 flex flex-wrap gap-1">
+                        {items.map((r: any) => (
+                          <span
+                            key={r.id}
+                            className="rounded-md bg-surface-3 px-2 py-0.5 text-[10px] text-muted-foreground ring-1 ring-border"
+                            title={r.concept?.slice(0, 100) || r.title}
+                          >
+                            {r.title.length > 30 ? r.title.slice(0, 28) + '…' : r.title}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )
               })}
