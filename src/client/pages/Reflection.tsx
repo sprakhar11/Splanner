@@ -125,7 +125,7 @@ export default function Reflection() {
           </div>
 
           <div className="flex items-center gap-0.5">
-            <IconBtn onClick={() => setDate(yesterday)} label="Jump to yesterday">
+            <IconBtn onClick={() => setDate(today)} label="Jump to today">
               <CalendarDays className="h-3.5 w-3.5" />
             </IconBtn>
             <IconBtn onClick={() => setDate(addDaysISO(date, -1))} label="Previous day">
@@ -134,7 +134,7 @@ export default function Reflection() {
             <IconBtn
               onClick={() => setDate(addDaysISO(date, 1))}
               label="Next day"
-              disabled={isToday}
+              disabled={date >= today}
             >
               <ChevronRight className="h-4 w-4" />
             </IconBtn>
