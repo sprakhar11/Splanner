@@ -6,6 +6,14 @@ import { randomUUID } from 'crypto'
 import { gradeCard, todayISO } from '../services/spaced-repetition'
 import { revisionItems } from '../db/schema'
 
+/** Adds days to a yyyy-MM-dd string. */
+function addDaysToISO(iso: string, days: number): string {
+  const d = new Date(iso + 'T00:00:00')
+  d.setDate(d.getDate() + days)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
 const interviewItemsRoute = new Hono()
 
 // List all, or filter by topicType
@@ -39,7 +47,18 @@ interviewItemsRoute.post('/', async (c) => {
   if (!body.topicType?.trim()) return c.json({ error: 'topicType is required' }, 400)
 
   const id = body.id || randomUUID()
-  const addToRevision = !!body.addToRevision
+  const wantsRevision = !!body.addToRevision
+  const linkedTaskId = body.linkedTaskId || null
+
+  // If linked to a task, start as PENDING (task not done yet).
+  // If no linked task and wants revision, go straight to REVISION_PENDING.
+  // If no linked task and no revision, it's DONE.
+  let status = 'DONE'
+  if (linkedTaskId) {
+    status = 'PENDING'
+  } else if (wantsRevision) {
+    status = 'REVISION_PENDING'
+  }
 
   db.insert(interviewItems).values({
     id,
@@ -48,14 +67,17 @@ interviewItemsRoute.post('/', async (c) => {
     description: body.description || '',
     link: body.link || '',
     tags: JSON.stringify(Array.isArray(body.tags) ? body.tags : []),
-    status: addToRevision ? 'REVISION_PENDING' : 'DONE',
+    status,
     revisionItemId: null,
+    linkedTaskId,
+    scheduleRevision: wantsRevision,
     createdAt: Date.now(),
   }).run()
 
-  // Create a revision card if opted in
+  // Only create revision card immediately if there's no linked task
+  // (i.e. the user is logging something already completed)
   let revId: string | null = null
-  if (addToRevision) {
+  if (wantsRevision && !linkedTaskId) {
     revId = randomUUID()
     db.insert(revisionItems).values({
       id: revId,
@@ -64,7 +86,7 @@ interviewItemsRoute.post('/', async (c) => {
       concept: body.description || '',
       codeSnippet: null,
       currentStepIndex: 0,
-      nextDueDate: todayISO(),
+      nextDueDate: addDaysToISO(todayISO(), 1), // Due tomorrow (day 1)
       lastRevisedDate: null,
       totalRevisions: 0,
     }).run()
@@ -90,22 +112,31 @@ interviewItemsRoute.put('/:id', async (c) => {
   if (body.tags !== undefined) patch.tags = JSON.stringify(Array.isArray(body.tags) ? body.tags : [])
   if (body.status !== undefined) patch.status = body.status
 
-  // Opt into revision retroactively
+  // Opt into revision retroactively (only if not linked to an incomplete task)
   if (body.addToRevision && !existing.revisionItemId) {
-    const revId = randomUUID()
-    db.insert(revisionItems).values({
-      id: revId,
-      noteId: null,
-      title: patch.title ?? existing.title,
-      concept: patch.description ?? existing.description ?? '',
-      codeSnippet: null,
-      currentStepIndex: 0,
-      nextDueDate: todayISO(),
-      lastRevisedDate: null,
-      totalRevisions: 0,
-    }).run()
-    patch.revisionItemId = revId
-    patch.status = 'REVISION_PENDING'
+    // If linked to a task that's not yet complete, just mark the intent
+    if (existing.linkedTaskId) {
+      patch.scheduleRevision = true
+      if (existing.status === 'PENDING') {
+        // Don't create card yet — wait for task completion
+      }
+    } else {
+      const revId = randomUUID()
+      db.insert(revisionItems).values({
+        id: revId,
+        noteId: null,
+        title: patch.title ?? existing.title,
+        concept: patch.description ?? existing.description ?? '',
+        codeSnippet: null,
+        currentStepIndex: 0,
+        nextDueDate: addDaysToISO(todayISO(), 1),
+        lastRevisedDate: null,
+        totalRevisions: 0,
+      }).run()
+      patch.revisionItemId = revId
+      patch.status = 'REVISION_PENDING'
+      patch.scheduleRevision = true
+    }
   }
 
   if (Object.keys(patch).length > 0) {

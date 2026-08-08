@@ -16,9 +16,15 @@ export function migrateInterviewItems() {
       tags TEXT DEFAULT '[]',
       status TEXT NOT NULL DEFAULT 'DONE',
       revision_item_id TEXT,
+      linked_task_id TEXT,
+      schedule_revision INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL DEFAULT (unixepoch() * 1000)
     )
   `)
+
+  // Add columns if they don't exist (for existing databases).
+  try { sqlite.exec(`ALTER TABLE interview_items ADD COLUMN linked_task_id TEXT`) } catch {}
+  try { sqlite.exec(`ALTER TABLE interview_items ADD COLUMN schedule_revision INTEGER NOT NULL DEFAULT 0`) } catch {}
 
   // Only migrate if the table is empty (first run).
   const count = (sqlite.prepare('SELECT COUNT(*) AS n FROM interview_items').get() as any).n

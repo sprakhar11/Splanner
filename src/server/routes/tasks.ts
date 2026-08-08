@@ -1,11 +1,12 @@
 import { Hono } from 'hono'
 import { db } from '../db/connection'
-import { tasks, subtasks, taskTags } from '../db/schema'
-import { eq, and, gte, lte, desc } from 'drizzle-orm'
+import { tasks, subtasks, taskTags, interviewItems } from '../db/schema'
+import { eq, and, gte, lte, desc, inArray, isNull } from 'drizzle-orm'
 import { randomUUID } from 'crypto'
 import {
   materialiseSeries, rescheduleSeries, pruneFutureOccurrences, deleteSeries,
 } from '../services/task-series'
+import { activateLinkedInterviewItems } from '../services/interview-activation'
 
 const tasksRoute = new Hono()
 
@@ -101,6 +102,25 @@ tasksRoute.post('/', async (c) => {
     generated = materialiseSeries(id)
   }
 
+  // Create a linked interview prep item if requested.
+  if (body.addToInterviewPrep && body.title?.trim()) {
+    const interviewId = randomUUID()
+    const tags = Array.isArray(body.tags) ? body.tags : []
+    db.insert(interviewItems).values({
+      id: interviewId,
+      topicType: body.interviewTopic || 'DSA',
+      title: body.title.trim(),
+      description: body.description || '',
+      link: '',
+      tags: JSON.stringify(tags),
+      status: 'PENDING', // Waits for task completion
+      revisionItemId: null,
+      linkedTaskId: id,
+      scheduleRevision: true,
+      createdAt: Date.now(),
+    }).run()
+  }
+
   const created = db.select().from(tasks).where(eq(tasks.id, id)).get()
   return c.json({ ...created, occurrencesCreated: generated }, 201)
 })
@@ -172,7 +192,13 @@ tasksRoute.put('/:id', async (c) => {
     series = rescheduleSeries(id)
   }
 
+  // When a task is completed, activate any linked interview items:
+  // PENDING → REVISION_PENDING, and create the revision card (due day 1).
   const updated = db.select().from(tasks).where(eq(tasks.id, id)).get()
+  if (updated?.status === 'COMPLETED' && before.status !== 'COMPLETED') {
+    activateLinkedInterviewItems(id)
+  }
+
   return c.json({ ...updated, ...(series ? { series } : {}) })
 })
 

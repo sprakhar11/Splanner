@@ -99,8 +99,11 @@ export const interviewItems = sqliteTable('interview_items', {
   description: text('description').default(''),
   link: text('link').default(''),
   tags: text('tags').default('[]'), // JSON array of strings
-  status: text('status').notNull().default('DONE'), // DONE | REVISION_PENDING | REVISION_1_DONE | REVISION_2_DONE | ...
+  // PENDING = task not done yet, DONE = done (no revision), REVISION_PENDING = in queue awaiting first review
+  status: text('status').notNull().default('DONE'),
   revisionItemId: text('revision_item_id'), // FK to revision_items when queued
+  linkedTaskId: text('linked_task_id'), // FK to tasks — triggers status change on task completion
+  scheduleRevision: integer('schedule_revision', { mode: 'boolean' }).notNull().default(false), // intent to revise once done
   createdAt: integer('created_at').notNull().$defaultFn(() => Date.now()),
 })
 
