@@ -116,7 +116,7 @@ tasksRoute.post('/', async (c) => {
       status: 'PENDING', // Waits for task completion
       revisionItemId: null,
       linkedTaskId: id,
-      scheduleRevision: true,
+      scheduleRevision: body.scheduleRevision !== false,
       createdAt: Date.now(),
     }).run()
   }

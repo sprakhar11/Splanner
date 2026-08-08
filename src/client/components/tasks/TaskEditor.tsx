@@ -100,6 +100,8 @@ export default function TaskEditor({ task, date, onSave, onClose }: TaskEditorPr
   // Seeded eagerly rather than only in the effect below, so the very first
   // render already shows the task's own values instead of flashing defaults.
   const [form, setForm] = useState(() => buildForm(task, date, defaultEstimate))
+  // Track revision opt-in separately for clarity in the UI.
+  const [scheduleRevision, setScheduleRevision] = useState(true)
 
   useEffect(() => {
     setForm(buildForm(task, date, defaultEstimate))
@@ -121,6 +123,7 @@ export default function TaskEditor({ task, date, onSave, onClose }: TaskEditorPr
     if (form.addToInterviewPrep && form.title.trim()) {
       payload.addToInterviewPrep = true
       payload.interviewTopic = form.interviewTopic
+      payload.scheduleRevision = scheduleRevision
     }
 
     onSave(payload)
@@ -310,8 +313,8 @@ export default function TaskEditor({ task, date, onSave, onClose }: TaskEditorPr
 
       {/* Also add to Interview Prep — for new tasks, not when editing an existing one */}
       {!task && (
-        <div className="space-y-2">
-          <label className="flex cursor-pointer items-center gap-2 text-[12px]">
+        <div className="space-y-2.5 rounded-lg bg-surface-3 p-3 ring-1 ring-border">
+          <label className="flex cursor-pointer items-center gap-2 text-[12px] font-medium">
             <input
               type="checkbox"
               checked={form.addToInterviewPrep}
@@ -319,16 +322,28 @@ export default function TaskEditor({ task, date, onSave, onClose }: TaskEditorPr
               className="h-3.5 w-3.5 rounded accent-[var(--primary)]"
             />
             <Briefcase className="h-3 w-3 text-muted-foreground" />
-            Also add to Interview Prep
+            Add to Interview Prep
           </label>
           {form.addToInterviewPrep && (
-            <select
-              value={form.interviewTopic}
-              onChange={e => set('interviewTopic', e.target.value)}
-              className={selectClass}
-            >
-              {topics.map(t => <option key={t} value={t}>{topicLabel(t)}</option>)}
-            </select>
+            <div className="ml-5 space-y-2">
+              <select
+                value={form.interviewTopic}
+                onChange={e => set('interviewTopic', e.target.value)}
+                className={selectClass}
+              >
+                {topics.map(t => <option key={t} value={t}>{topicLabel(t)}</option>)}
+              </select>
+              <label className="flex cursor-pointer items-center gap-2 text-[11.5px] text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={scheduleRevision}
+                  onChange={e => setScheduleRevision(e.target.checked)}
+                  className="h-3.5 w-3.5 rounded accent-[var(--primary)]"
+                />
+                Mark for revision
+                <span className="text-[10px] opacity-60">(spaced repetition after completion)</span>
+              </label>
+            </div>
           )}
         </div>
       )}
