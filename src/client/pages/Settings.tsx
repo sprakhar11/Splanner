@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Bell, Download, Upload, RotateCcw, Plus, Trash2, Check, AlertTriangle,
-  User, Target, Database, Palette, Briefcase,
+  User, Target, Database, Palette, Briefcase, BookOpen, Heart,
 } from 'lucide-react'
 import { useSettings, useUpdateSettings } from '@client/hooks/useSettings'
 import {
@@ -208,6 +208,8 @@ export default function Settings() {
         </Section>
 
         <CategoriesSection />
+        <NoteTypesSection />
+        <LifeSection />
         <InterviewTargetsSection />
         <DataSection />
       </div>
@@ -334,6 +336,225 @@ function CategoriesSection() {
       </button>
     </Section>
   )
+}
+
+function LifeSection() {
+  const { data: settings } = useSettings()
+  const updateSettings = useUpdateSettings()
+  const { toast } = useToast()
+
+  const dob = settings?.dob || ''
+  const expectedYears = settings?.lifeExpectedYears || '80'
+  const goals: { name: string; deadline: string; addedOn: string }[] = (() => {
+    try { return settings?.lifeGoals ? JSON.parse(settings.lifeGoals) : [] } catch { return [] }
+  })()
+
+  const [newGoal, setNewGoal] = useState('')
+  const [newDeadline, setNewDeadline] = useState('')
+
+  const saveDob = (value: string) => {
+    updateSettings.mutate({ dob: value }, {
+      onSuccess: () => toast({ title: 'DOB saved', tone: 'success' }),
+    })
+  }
+
+  const saveExpectedYears = (value: string) => {
+    const n = Math.max(1, Math.min(120, Number(value) || 80))
+    updateSettings.mutate({ lifeExpectedYears: String(n) })
+  }
+
+  const addGoal = () => {
+    if (!newGoal.trim() || !newDeadline) return
+    const today = new Date().toISOString().slice(0, 10)
+    const updated = [...goals, { name: newGoal.trim(), deadline: newDeadline, addedOn: today }]
+    updateSettings.mutate({ lifeGoals: JSON.stringify(updated) }, {
+      onSuccess: () => {
+        setNewGoal('')
+        setNewDeadline('')
+        toast({ title: `Added "${newGoal.trim()}"`, tone: 'success' })
+      },
+    })
+  }
+
+  const removeGoal = (idx: number) => {
+    const updated = goals.filter((_, i) => i !== idx)
+    updateSettings.mutate({ lifeGoals: JSON.stringify(updated) }, {
+      onSuccess: () => toast({ title: 'Goal removed', tone: 'success' }),
+    })
+  }
+
+  return (
+    <Section icon={Heart} title="Life" hint="DOB, expected lifespan, and goals with deadlines">
+      <Row label="Date of birth">
+        <input
+          type="date"
+          value={dob}
+          onChange={e => saveDob(e.target.value)}
+          className="h-8 w-40 rounded-md border border-input bg-background px-2.5 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/60"
+        />
+      </Row>
+      <Row label="Expected lifespan" hint="Used for the life calendar">
+        <div className="flex items-center gap-1.5">
+          <input
+            type="number"
+            min={1}
+            max={120}
+            value={expectedYears}
+            onChange={e => saveExpectedYears(e.target.value)}
+            className="h-8 w-16 rounded-md border border-input bg-background px-2 text-right text-[12.5px] tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/60"
+          />
+          <span className="text-[11px] text-muted-foreground">years</span>
+        </div>
+      </Row>
+
+      <div className="mt-3 border-t border-border pt-3">
+        <p className="mb-2.5 text-[11px] font-medium text-muted-foreground">Goals</p>
+        {goals.length > 0 && (
+          <div className="mb-3 space-y-1.5">
+            {goals.map((g, i) => (
+              <div key={i} className="flex items-center gap-2.5 rounded-lg bg-surface-3 px-3 py-2 ring-1 ring-border">
+                <span className="min-w-0 flex-1 text-[12.5px] font-medium">{g.name}</span>
+                <span className="shrink-0 text-[10.5px] tabular-nums text-muted-foreground">
+                  due {g.deadline}
+                </span>
+                <button
+                  onClick={() => removeGoal(i)}
+                  aria-label={`Remove ${g.name}`}
+                  className="shrink-0 text-muted-foreground transition hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <input
+            value={newGoal}
+            onChange={e => setNewGoal(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') addGoal() }}
+            placeholder="Goal name"
+            className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 text-[12.5px] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60"
+          />
+          <input
+            type="date"
+            value={newDeadline}
+            onChange={e => setNewDeadline(e.target.value)}
+            className="h-8 w-36 rounded-md border border-input bg-background px-2 text-[12.5px] focus:outline-none focus:ring-2 focus:ring-primary/60"
+          />
+          <button
+            onClick={addGoal}
+            disabled={!newGoal.trim() || !newDeadline}
+            className="flex h-8 shrink-0 items-center gap-1 rounded-md bg-surface-3 px-2.5 text-[12px] ring-1 ring-border transition hover:text-foreground disabled:opacity-40"
+          >
+            <Plus className="h-3 w-3" /> Add
+          </button>
+        </div>
+      </div>
+    </Section>
+  )
+}
+
+const DEFAULT_NOTE_TYPES = ['CONCEPT', 'INTERVIEW_QUESTION', 'CODE_SNIPPET', 'MISTAKE', 'GENERAL']
+
+function NoteTypesSection() {
+  const { data: settings } = useSettings()
+  const updateSettings = useUpdateSettings()
+  const { toast } = useToast()
+  const [newType, setNewType] = useState('')
+  const [counts, setCounts] = useState<Record<string, number>>({})
+
+  // Load counts on mount
+  useEffect(() => {
+    fetch('/api/notes/count-by-type')
+      .then(r => r.json())
+      .then(setCounts)
+      .catch(() => {})
+  }, [])
+
+  // Parse stored types — if set, use that; otherwise use defaults
+  const noteTypes: string[] = (() => {
+    try { return settings?.noteTypes ? JSON.parse(settings.noteTypes) : [] } catch { return [] }
+  })()
+  const allTypes = noteTypes.length > 0 ? noteTypes : DEFAULT_NOTE_TYPES
+
+  const addType = () => {
+    const name = newType.trim().toUpperCase().replace(/\s+/g, '_')
+    if (!name || allTypes.includes(name)) return
+    const updated = [...allTypes, name]
+    updateSettings.mutate({ noteTypes: JSON.stringify(updated) }, {
+      onSuccess: () => {
+        setNewType('')
+        toast({ title: `Added "${typeDisplay(name)}"`, tone: 'success' })
+      },
+    })
+  }
+
+  const deleteType = (type: string) => {
+    if (allTypes.length <= 1) {
+      toast({ title: 'Cannot delete the last type', tone: 'warning' })
+      return
+    }
+    const count = counts[type] || 0
+    if (count > 0) {
+      if (!confirm(
+        `"${typeDisplay(type)}" has ${count} note${count > 1 ? 's' : ''} using it.\n\nDeleting this type will leave those notes with an unrecognized type. They'll still exist but won't appear in the type filter until you recategorize them.\n\nContinue?`
+      )) return
+    } else {
+      if (!confirm(`Delete "${typeDisplay(type)}"?`)) return
+    }
+    const updated = allTypes.filter(t => t !== type)
+    updateSettings.mutate({ noteTypes: JSON.stringify(updated) }, {
+      onSuccess: () => toast({ title: `Removed "${typeDisplay(type)}"`, tone: 'success' }),
+    })
+  }
+
+  return (
+    <Section icon={BookOpen} title="Note types" hint={`${allTypes.length} types configured`}>
+      <div className="space-y-1.5">
+        {allTypes.map(type => {
+          const count = counts[type] || 0
+          return (
+            <div key={type} className="flex items-center gap-2.5 rounded-lg bg-surface-3 px-3 py-2 ring-1 ring-border">
+              <span className="min-w-0 flex-1 text-[12.5px] font-medium">{typeDisplay(type)}</span>
+              {count > 0 && (
+                <span className="text-[10.5px] tabular-nums text-muted-foreground">{count} note{count > 1 ? 's' : ''}</span>
+              )}
+              <button
+                onClick={() => deleteType(type)}
+                aria-label={`Delete ${typeDisplay(type)}`}
+                className="shrink-0 text-muted-foreground transition hover:text-destructive"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          )
+        })}
+      </div>
+
+      <div className="mt-3 flex items-center gap-2">
+        <input
+          value={newType}
+          onChange={e => setNewType(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') addType() }}
+          placeholder="New type (e.g. Resource)"
+          className="h-8 min-w-0 flex-1 rounded-md border border-input bg-background px-2.5 text-[12.5px] placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/60"
+        />
+        <button
+          onClick={addType}
+          disabled={!newType.trim()}
+          className="flex h-8 shrink-0 items-center gap-1 rounded-md bg-surface-3 px-2.5 text-[12px] ring-1 ring-border transition hover:text-foreground disabled:opacity-40"
+        >
+          <Plus className="h-3 w-3" /> Add
+        </button>
+      </div>
+    </Section>
+  )
+}
+
+function typeDisplay(t: string) {
+  return t.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
 }
 
 function InterviewTargetsSection() {
