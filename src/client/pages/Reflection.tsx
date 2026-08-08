@@ -41,7 +41,8 @@ const PROMPTS = {
 
 export default function Reflection() {
   const today = todayISO()
-  const [date, setDate] = useState(today)
+  const yesterday = addDaysISO(today, -1)
+  const [date, setDate] = useState(yesterday)
 
   const { data: existing, isLoading } = useReflection(date)
   const upsert = useUpsertReflection()
@@ -124,7 +125,7 @@ export default function Reflection() {
           </div>
 
           <div className="flex items-center gap-0.5">
-            <IconBtn onClick={() => setDate(today)} label="Jump to today">
+            <IconBtn onClick={() => setDate(yesterday)} label="Jump to yesterday">
               <CalendarDays className="h-3.5 w-3.5" />
             </IconBtn>
             <IconBtn onClick={() => setDate(addDaysISO(date, -1))} label="Previous day">
