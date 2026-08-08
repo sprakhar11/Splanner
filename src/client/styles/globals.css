@@ -149,3 +149,27 @@ code, pre, kbd { font-family: var(--font-mono); }
   scrollbar-width: none;
   &::-webkit-scrollbar { display: none; }
 }
+
+/* ===== Privacy blur =====
+   Toggled from the icon rail, for when Splanner is parked on a second monitor
+   that other people can see. Only elements marked [data-private] are affected,
+   so the rail, top bar and timer controls stay sharp and usable while the
+   actual task/journal/prep content is unreadable.
+
+   Pointer events are dropped along with legibility — you cannot read what you
+   would be clicking, so a stray click should not be able to complete or delete
+   anything. The rail sits outside the blurred subtree, so the toggle and
+   navigation always stay reachable. */
+[data-private] {
+  transition: filter 160ms ease-out;
+}
+
+.privacy-blur [data-private] {
+  filter: blur(8px);
+  user-select: none;
+  pointer-events: none;
+}
+
+/* Blur cannot be undone by a descendant — once an ancestor is rasterised
+   blurred, children inherit it. So anything that must stay sharp has to live
+   outside the [data-private] subtree rather than opting out. */

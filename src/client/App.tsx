@@ -20,6 +20,7 @@ import Stats from './pages/Stats'
 import InterviewPrep from './pages/InterviewPrep'
 import Reflection from './pages/Reflection'
 import Settings from './pages/Settings'
+import Life from './pages/Life'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -32,6 +33,7 @@ const SUBTITLES: Record<string, string> = {
   '/revise': 'Review what is due before it fades.',
   '/stats': 'Track consistency and interview readiness.',
   '/interview': 'DSA, system design, LLD, and behavioural prep.',
+  '/life': 'Your life in weeks. Make them count.',
   '/reflection': 'Close the day with a short review.',
   '/settings': 'Personalise Splanner and manage your data.',
 }
@@ -51,7 +53,9 @@ function Shell() {
           <TopBar subtitle={SUBTITLES[location.pathname]} />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-hidden px-3 pb-3">
+        {/* data-private: blurred when the rail's privacy toggle is on. Scoped to
+            the routed content so the rail and top bar stay sharp and usable. */}
+        <div data-private className="min-h-0 flex-1 overflow-hidden px-3 pb-3">
           <AnimatePresence mode="wait">
             <motion.div
               key={location.pathname}
@@ -70,6 +74,7 @@ function Shell() {
                 <Route path="/interview" element={<InterviewPrep />} />
                 <Route path="/reflection" element={<Reflection />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/life" element={<Life />} />
               </Routes>
             </motion.div>
           </AnimatePresence>

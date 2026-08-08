@@ -78,7 +78,11 @@ export default function FocusDock() {
           </div>
 
           <div className="min-w-0">
+            {/* The task name is the one piece of user data that floats above the
+                content, so it hides with the privacy blur. The clock and the
+                controls beside it stay sharp so the session stays operable. */}
             <p
+              data-private
               className={cn(
                 'max-w-[190px] truncate text-[12.5px] font-semibold leading-tight',
                 !session.taskTitle && 'italic text-muted-foreground'
