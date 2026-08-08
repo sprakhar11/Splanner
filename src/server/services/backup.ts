@@ -1,5 +1,6 @@
 import { sqlite, db } from '../db/connection'
 import * as schema from '../db/schema'
+import { ensureRolloverTable } from './day-rollover'
 import path from 'path'
 import fs from 'fs'
 
@@ -57,7 +58,9 @@ function cleanupOldBackups() {
  */
 export function exportAsJson(): string {
   const data = {
-    version: 1,
+    // v2 adds interviewItems, notifications and taskRollovers. v1 files are
+    // still importable — every table is read with a presence check.
+    version: 2,
     exportedAt: Date.now(),
     categories: db.select().from(schema.categories).all(),
     tasks: db.select().from(schema.tasks).all(),
@@ -66,11 +69,14 @@ export function exportAsJson(): string {
     revisions: db.select().from(schema.revisionItems).all(),
     revisionHistory: db.select().from(schema.revisionHistory).all(),
     reflections: db.select().from(schema.reflections).all(),
+    interviewItems: db.select().from(schema.interviewItems).all(),
     dsa: db.select().from(schema.dsaProblems).all(),
     systemDesign: db.select().from(schema.systemDesign).all(),
     lld: db.select().from(schema.lldDesigns).all(),
     hrStories: db.select().from(schema.hrStories).all(),
     studySessions: db.select().from(schema.studySessions).all(),
+    notifications: db.select().from(schema.notifications).all(),
+    taskRollovers: readTaskRollovers(),
     taskTags: db.select().from(schema.taskTags).all(),
     noteTags: db.select().from(schema.noteTags).all(),
     revisionItemTags: db.select().from(schema.revisionItemTags).all(),
@@ -78,6 +84,35 @@ export function exportAsJson(): string {
     settings: db.select().from(schema.settings).all(),
   }
   return JSON.stringify(data, null, 2)
+}
+
+/**
+ * The rollover log lives outside the Drizzle schema — day-rollover.ts creates it
+ * with raw DDL on demand, so it may not exist yet on an older database.
+ */
+function readTaskRollovers(): any[] {
+  try {
+    return sqlite.prepare(
+      'SELECT id, task_id, from_date, to_date, rolled_at FROM task_rollovers'
+    ).all() as any[]
+  } catch {
+    return []
+  }
+}
+
+/** Restores the rollover log, creating the table first if this database predates it. */
+function writeTaskRollovers(rows: any[]) {
+  if (!rows?.length) return
+  ensureRolloverTable()
+  const stmt = sqlite.prepare(
+    `INSERT INTO task_rollovers (id, task_id, from_date, to_date, rolled_at)
+     VALUES (?, ?, ?, ?, ?)`
+  )
+  for (const r of rows) {
+    // Merge mode can collide on the autoincrement id; the log is append-only
+    // history, so a duplicate is not worth failing the whole import over.
+    try { stmt.run(r.id, r.task_id, r.from_date, r.to_date, r.rolled_at) } catch {}
+  }
 }
 
 /**
@@ -100,10 +135,13 @@ export function importFromJson(jsonStr: string, mode: 'replace' | 'merge' = 'rep
       db.delete(schema.noteTags).run()
       db.delete(schema.taskTags).run()
       db.delete(schema.studySessions).run()
+      // Before revisionItems and tasks: interview items point at both.
+      db.delete(schema.interviewItems).run()
       db.delete(schema.revisionHistory).run()
       db.delete(schema.revisionItems).run()
       db.delete(schema.subtasks).run()
       db.delete(schema.notifications).run()
+      try { sqlite.exec('DELETE FROM task_rollovers') } catch {}
       db.delete(schema.reflections).run()
       db.delete(schema.dsaProblems).run()
       db.delete(schema.systemDesign).run()
@@ -155,11 +193,16 @@ export function importFromJson(jsonStr: string, mode: 'replace' | 'merge' = 'rep
     if (data.revisions) insertBatch(schema.revisionItems, data.revisions)
     if (data.revisionHistory) insertBatch(schema.revisionHistory, data.revisionHistory)
     if (data.reflections) insertBatch(schema.reflections, data.reflections)
+    // After tasks and revisionItems, since interview items reference both.
+    // Absent from v1 exports, which is exactly the data those backups lost.
+    if (data.interviewItems) insertBatch(schema.interviewItems, data.interviewItems)
     if (data.dsa) insertBatch(schema.dsaProblems, data.dsa)
     if (data.systemDesign) insertBatch(schema.systemDesign, data.systemDesign)
     if (data.lld) insertBatch(schema.lldDesigns, data.lld)
     if (data.hrStories) insertBatch(schema.hrStories, data.hrStories)
     if (data.studySessions) insertBatch(schema.studySessions, data.studySessions)
+    if (data.notifications) insertBatch(schema.notifications, data.notifications)
+    if (data.taskRollovers) writeTaskRollovers(data.taskRollovers)
 
     // Junction tables (no primary key — simple insert)
     if (data.taskTags) insertSimple(schema.taskTags, data.taskTags)
