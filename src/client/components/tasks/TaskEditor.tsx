@@ -116,16 +116,11 @@ export default function TaskEditor({ task, date, onSave, onClose }: TaskEditorPr
       reminderAt: fromLocalInput(form.reminderAt),
     }
 
-    // Fire-and-forget: also create an interview prep item if opted in
+    // Fire-and-forget: also create an interview prep item if opted in.
+    // Pass the task data along; the interview item will be linked once the task is created.
     if (form.addToInterviewPrep && form.title.trim()) {
-      api.interviewItems.create({
-        title: form.title.trim(),
-        topicType: form.interviewTopic,
-        description: form.description || '',
-        link: '',
-        tags: payload.tags,
-        addToRevision: false,
-      }).catch(() => {})
+      payload.addToInterviewPrep = true
+      payload.interviewTopic = form.interviewTopic
     }
 
     onSave(payload)

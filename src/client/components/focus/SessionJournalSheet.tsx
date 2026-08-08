@@ -182,13 +182,17 @@ export default function SessionJournalSheet() {
       // Also add to Interview Prep if opted in
       if (addToInterviewPrep) {
         const itemTitle = createdTask?.title ?? pendingJournal.taskTitle ?? untitled.title
+        const itemTaskId = createdTask?.id ?? pendingJournal.taskId
         api.interviewItems.create({
           title: itemTitle.trim(),
           topicType: interviewTopic,
           description: draft.mistake || draft.learned || '',
           link: '',
           tags: mergeTags(parseTags(tagInput), []),
-          addToRevision: false,
+          addToRevision: true,
+          // If the task was completed in this session, no linked task needed (already done).
+          // Otherwise link it so completion activates the revision.
+          linkedTaskId: pendingJournal.completed ? null : (itemTaskId || null),
         }).then(() => {
           qc.invalidateQueries({ queryKey: ['interviewItems'] })
         }).catch(() => {})
