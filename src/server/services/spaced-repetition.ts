@@ -32,13 +32,19 @@ export function addDaysISO(iso: string, days: number) {
  * HARD  -> unchanged (repeat same interval)
  * GOOD  -> +1, capped
  * EASY  -> +2, capped
+ *
+ * Never returns 0. Stage 0 is a creation-only sentinel meaning "due
+ * immediately, never scheduled" — its interval is 0 days, so allowing a grade
+ * to land there would re-schedule the card for the same day and it would
+ * bounce straight back into the due queue. Every graded card gets at least a
+ * one-day gap.
  */
 export function nextStage(current: number, grade: Grade): number {
   switch (grade) {
     case 'AGAIN': return 1
-    case 'HARD': return Math.min(current, MAX_STAGE)
-    case 'GOOD': return Math.min(current + 1, MAX_STAGE)
-    case 'EASY': return Math.min(current + 2, MAX_STAGE)
+    case 'HARD': return Math.max(1, Math.min(current, MAX_STAGE))
+    case 'GOOD': return Math.max(1, Math.min(current + 1, MAX_STAGE))
+    case 'EASY': return Math.max(1, Math.min(current + 2, MAX_STAGE))
   }
 }
 
