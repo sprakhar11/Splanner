@@ -6,7 +6,7 @@ import { seedDatabase } from './db/seed'
 import { ensureSearchIndex } from './db/search-index'
 import { migrateInterviewItems } from './db/migrate-interview'
 import { topUpAllSeries } from './services/task-series'
-import { checkAndRollover } from './services/day-rollover'
+import { checkAndRollover, isRolloverPending } from './services/day-rollover'
 import { performAutoBackup } from './services/backup'
 
 // Routes
@@ -26,6 +26,14 @@ import searchRoute from './routes/search'
 import backupRoute from './routes/backup'
 
 // Startup tasks
+//
+// The backup goes first, before anything else touches the database. Everything
+// below it writes: the rollover rewrites task dates, series top-up inserts
+// occurrences, and the migration adds columns. On the first launch after an
+// update the rollover can move weeks of unfinished tasks at once, so the day's
+// backup has to be the state from before that happened — not after.
+performAutoBackup()
+
 seedDatabase()
 migrateInterviewItems()
 ensureSearchIndex()
@@ -36,7 +44,6 @@ const series = topUpAllSeries()
 if (series.created > 0) {
   console.log(`[series] Generated ${series.created} occurrences across ${series.series} series.`)
 }
-performAutoBackup()
 
 const app = new Hono()
 
@@ -45,7 +52,12 @@ app.use('*', cors({ origin: '*' }))
 // Day rollover middleware: checks once per calendar day whether incomplete
 // tasks need to move to today. Handles the case where the server stayed
 // running overnight (laptop idle) without a restart.
+//
+// Backs up first, but only when a rollover is actually due, so this costs one
+// settings read per request rather than a filesystem check. That keeps the same
+// guarantee as the boot path: the day's backup always predates the day's move.
 app.use('*', async (c, next) => {
+  if (isRolloverPending()) performAutoBackup()
   checkAndRollover()
   await next()
 })

@@ -47,7 +47,7 @@ function setLastRolloverDate(date: string) {
 }
 
 /** Ensures the rollover log table exists (created once, never migrated). */
-function ensureRolloverTable() {
+export function ensureRolloverTable() {
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS task_rollovers (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -64,6 +64,16 @@ export type RolloverResult = {
   moved: number
   today: string
   fromDates: string[]
+}
+
+/**
+ * True when a rollover has not yet run for the current local day.
+ *
+ * Lets a caller do something before the move happens — taking the daily backup,
+ * for instance — without paying for it on every request.
+ */
+export function isRolloverPending(): boolean {
+  return getLastRolloverDate() !== todayISO()
 }
 
 /**
