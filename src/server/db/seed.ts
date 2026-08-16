@@ -29,7 +29,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   pomodoroMinutes: '25',
   focusPopOut: 'true',
   rolloverHour: '0',
-  disabledTabs: '',
+  disabledTabs: 'life,revise,reflection',
 }
 
 export function seedDatabase() {
