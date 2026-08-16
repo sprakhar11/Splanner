@@ -24,6 +24,7 @@ export const DEFAULTS = {
   weekStartsMonday: false,
   pomodoroMinutes: 25,
   focusPopOut: true,
+  rolloverHour: 0,
 } as const
 
 /**
@@ -83,6 +84,7 @@ export function readAll(settings: SettingsMap | undefined) {
 const RANGES: Partial<Record<SettingKey, [number, number]>> = {
   dailyStudyGoalHours: [0.5, 16],
   pomodoroMinutes: [5, 180],
+  rolloverHour: [0, 6],
 }
 
 /** Clamps a numeric setting into a sensible range before saving. */

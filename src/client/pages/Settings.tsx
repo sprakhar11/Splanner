@@ -185,6 +185,16 @@ export default function Settings() {
               label="Evening reflection nudge"
             />
           </Row>
+          <Row label="Day ends at" hint="Incomplete tasks move to tomorrow after this hour. Set later if you study at night.">
+            <NumInput
+              value={draft.rolloverHour}
+              onChange={v => setNumber('rolloverHour', v)}
+              suffix={draft.rolloverHour === 0 ? 'midnight' : `${String(draft.rolloverHour).padStart(2, '0')}:00`}
+              step={1}
+              min={0}
+              max={6}
+            />
+          </Row>
         </Section>
 
         {/* Appearance */}
@@ -863,18 +873,20 @@ function Row({
 }
 
 function NumInput({
-  value, onChange, suffix, step = 1,
-}: { value: number; onChange: (v: number) => void; suffix?: string; step?: number }) {
+  value, onChange, suffix, step = 1, min, max,
+}: { value: number; onChange: (v: number) => void; suffix?: string; step?: number; min?: number; max?: number }) {
   return (
     <div className="flex items-center gap-1.5">
       <input
         type="number"
         value={value}
         step={step}
+        min={min}
+        max={max}
         onChange={e => onChange(Number(e.target.value))}
         className="h-8 w-16 rounded-md border border-input bg-background px-2 text-right text-[12.5px] tabular-nums focus:outline-none focus:ring-2 focus:ring-primary/60"
       />
-      {suffix && <span className="w-12 text-[11px] text-muted-foreground">{suffix}</span>}
+      {suffix && <span className="min-w-12 text-[11px] text-muted-foreground">{suffix}</span>}
     </div>
   )
 }

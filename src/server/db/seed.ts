@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS: Record<string, string> = {
   weekStartsMonday: 'false',
   pomodoroMinutes: '25',
   focusPopOut: 'true',
+  rolloverHour: '0',
 }
 
 export function seedDatabase() {

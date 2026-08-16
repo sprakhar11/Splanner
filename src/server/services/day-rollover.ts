@@ -22,6 +22,37 @@ import { tasks, settings } from '../db/schema'
 import { eq, and, lt, inArray, isNull } from 'drizzle-orm'
 
 const ROLLOVER_KEY = 'lastRolloverDate'
+const ROLLOVER_HOUR_KEY = 'rolloverHour'
+
+/**
+ * Returns the configured hour (0–23) at which the day "ends" for task movement.
+ * Default is 0 (midnight). If a user studies until 2 AM, they can set this to 3
+ * so incomplete tasks don't vanish while they're still working.
+ */
+function getRolloverHour(): number {
+  const row = db.select().from(settings).where(eq(settings.key, ROLLOVER_HOUR_KEY)).get()
+  const n = Number(row?.value ?? '0')
+  return Number.isFinite(n) && n >= 0 && n <= 6 ? Math.floor(n) : 0
+}
+
+/**
+ * The "logical today" for rollover purposes.
+ *
+ * If the current wall-clock time is before the rollover hour, we still consider
+ * it "yesterday" — the user's day hasn't ended yet, so nothing should move.
+ * Everything else in the app (task creation, calendar view, due dates) uses the
+ * real date as always; only the rollover boundary shifts.
+ */
+function rolloverToday(): string {
+  const now = new Date()
+  const hour = getRolloverHour()
+  // Before the cutoff → still yesterday's "day"
+  if (hour > 0 && now.getHours() < hour) {
+    now.setDate(now.getDate() - 1)
+  }
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
+}
 
 /** Server-local today as yyyy-MM-dd. */
 function todayISO() {
@@ -73,7 +104,7 @@ export type RolloverResult = {
  * for instance — without paying for it on every request.
  */
 export function isRolloverPending(): boolean {
-  return getLastRolloverDate() !== todayISO()
+  return getLastRolloverDate() !== rolloverToday()
 }
 
 /**
@@ -81,7 +112,7 @@ export function isRolloverPending(): boolean {
  * Safe to call on every request — returns immediately when already done today.
  */
 export function checkAndRollover(): RolloverResult {
-  const today = todayISO()
+  const today = rolloverToday()
   const last = getLastRolloverDate()
 
   // Already done today — fast path.
