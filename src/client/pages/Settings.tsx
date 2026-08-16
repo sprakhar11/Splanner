@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Bell, Download, Upload, RotateCcw, Plus, Trash2, Check, AlertTriangle,
-  User, Target, Database, Palette, Briefcase, BookOpen, Heart,
+  User, Target, Database, Palette, Briefcase, BookOpen, Heart, LayoutGrid,
 } from 'lucide-react'
 import { useSettings, useUpdateSettings } from '@client/hooks/useSettings'
 import {
@@ -11,6 +11,7 @@ import { requestNotificationPermission } from '@client/hooks/useReminders'
 import { useToast } from '@client/components/ui/toast'
 import {
   readAll, writeSetting, clampSetting, DEFAULTS, CHOICES, type SettingKey,
+  OPTIONAL_TABS, getTabLabel, getDisabledTabs, type OptionalTab,
 } from '@client/lib/settings'
 import { api } from '@client/api/client'
 import { cn } from '@client/lib/utils'
@@ -218,6 +219,25 @@ export default function Settings() {
         </Section>
 
         <CategoriesSection />
+
+        {/* Visible Tabs */}
+        <Section icon={LayoutGrid} title="Visible tabs" hint="Hide tabs you don't use. Data is kept — re-enable anytime.">
+          {OPTIONAL_TABS.map(tab => {
+            const disabledSet = getDisabledTabs(settings)
+            const enabled = !disabledSet.has(tab)
+            const toggleTab = (on: boolean) => {
+              const current = getDisabledTabs(settings)
+              if (on) current.delete(tab); else current.add(tab)
+              const value = [...current].join(',')
+              updateSettings.mutate({ disabledTabs: value })
+            }
+            return (
+              <Row key={tab} label={getTabLabel(tab)}>
+                <Toggle checked={enabled} onChange={toggleTab} label={getTabLabel(tab)} />
+              </Row>
+            )
+          })}
+        </Section>
         <NoteTypesSection />
         <LifeSection />
         <InterviewTargetsSection />

@@ -7,20 +7,22 @@ import {
   Eye, EyeOff,
 } from 'lucide-react'
 import { cn } from '@client/lib/utils'
+import { useSettings } from '@client/hooks/useSettings'
+import { getDisabledTabs } from '@client/lib/settings'
 
 const primary = [
-  { to: '/', label: 'Dashboard', icon: LayoutGrid },
-  { to: '/planner', label: 'Planner', icon: CalendarDays },
-  { to: '/revise', label: 'Revise', icon: Brain },
-  { to: '/journal', label: 'Journal', icon: BookOpen },
-  { to: '/stats', label: 'Stats', icon: BarChart3 },
-  { to: '/interview', label: 'Interview Prep', icon: Briefcase },
-  { to: '/life', label: 'Life', icon: Heart },
+  { to: '/', label: 'Dashboard', icon: LayoutGrid, key: null },
+  { to: '/planner', label: 'Planner', icon: CalendarDays, key: null },
+  { to: '/revise', label: 'Revise', icon: Brain, key: 'revise' as const },
+  { to: '/journal', label: 'Journal', icon: BookOpen, key: null },
+  { to: '/stats', label: 'Stats', icon: BarChart3, key: 'stats' as const },
+  { to: '/interview', label: 'Interview Prep', icon: Briefcase, key: 'interview' as const },
+  { to: '/life', label: 'Life', icon: Heart, key: 'life' as const },
 ]
 
 const secondary = [
-  { to: '/settings', label: 'Settings', icon: Settings },
-  { to: '/reflection', label: 'Reflection', icon: Sunset },
+  { to: '/settings', label: 'Settings', icon: Settings, key: null },
+  { to: '/reflection', label: 'Reflection', icon: Sunset, key: 'reflection' as const },
 ]
 
 const COLLAPSED_W = 68
@@ -123,6 +125,9 @@ export default function IconRail() {
     try { return localStorage.getItem('splanner.railExpanded') === 'true' } catch { return false }
   })
 
+  const { data: settings } = useSettings()
+  const disabled = getDisabledTabs(settings)
+
   // Privacy blur. Persisted so the mode survives a reload — index.html applies
   // the class before first paint so blurred content never flashes into view.
   const [blurred, setBlurred] = useState(() => {
@@ -192,7 +197,7 @@ export default function IconRail() {
         </div>
 
         <nav className={cn('flex flex-col gap-1', expanded ? 'items-stretch' : 'items-center')}>
-          {primary.map(i => <RailLink key={i.to} {...i} expanded={expanded} />)}
+          {primary.filter(i => !i.key || !disabled.has(i.key)).map(i => <RailLink key={i.to} {...i} expanded={expanded} />)}
         </nav>
 
         <div className={cn('mt-auto flex flex-col gap-1 pt-4', expanded ? 'items-stretch' : 'items-center')}>
@@ -203,7 +208,7 @@ export default function IconRail() {
             active={blurred}
             onClick={toggleBlur}
           />
-          {secondary.map(i => <RailLink key={i.to} {...i} expanded={expanded} />)}
+          {secondary.filter(i => !i.key || !disabled.has(i.key)).map(i => <RailLink key={i.to} {...i} expanded={expanded} />)}
         </div>
       </div>
     </motion.aside>

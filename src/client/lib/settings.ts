@@ -25,6 +25,7 @@ export const DEFAULTS = {
   pomodoroMinutes: 25,
   focusPopOut: true,
   rolloverHour: 0,
+  disabledTabs: '',
 } as const
 
 /**
@@ -96,4 +97,33 @@ export function clampSetting(key: SettingKey, value: number): number {
   return key === 'dailyStudyGoalHours'
     ? Math.round(clamped * 2) / 2
     : Math.round(clamped)
+}
+
+/** Tabs that can be disabled from Settings. */
+export const OPTIONAL_TABS = ['revise', 'stats', 'life', 'interview', 'reflection'] as const
+export type OptionalTab = typeof OPTIONAL_TABS[number]
+
+const TAB_LABELS: Record<OptionalTab, string> = {
+  revise: 'Revise',
+  stats: 'Stats',
+  life: 'Life',
+  interview: 'Interview Prep',
+  reflection: 'Reflection',
+}
+
+export function getTabLabel(tab: OptionalTab): string {
+  return TAB_LABELS[tab]
+}
+
+/** Parse the stored comma-separated list of disabled tab keys. */
+export function getDisabledTabs(settings: SettingsMap | undefined): Set<OptionalTab> {
+  const raw = settings?.disabledTabs || ''
+  if (!raw) return new Set()
+  const tabs = raw.split(',').map(s => s.trim()).filter(Boolean)
+  return new Set(tabs.filter(t => (OPTIONAL_TABS as readonly string[]).includes(t)) as OptionalTab[])
+}
+
+/** Check if a specific tab is enabled. */
+export function isTabEnabled(settings: SettingsMap | undefined, tab: OptionalTab): boolean {
+  return !getDisabledTabs(settings).has(tab)
 }

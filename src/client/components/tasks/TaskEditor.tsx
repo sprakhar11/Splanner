@@ -5,7 +5,7 @@ import SubtaskList from '@client/components/tasks/SubtaskList'
 import { useCategories } from '@client/hooks/useCategories'
 import { useSettings } from '@client/hooks/useSettings'
 import { useFocusTimer } from '@client/hooks/useFocusTimer'
-import { readSetting } from '@client/lib/settings'
+import { readSetting, isTabEnabled } from '@client/lib/settings'
 import { api } from '@client/api/client'
 import { toLocalInput, fromLocalInput, atTimeOn, relativeTime, formatMinutes } from '@client/lib/date'
 import { cn } from '@client/lib/utils'
@@ -311,8 +311,9 @@ export default function TaskEditor({ task, date, onSave, onClose }: TaskEditorPr
       {/* Only a saved task has an id to hang subtasks off. */}
       {task?.id && <SubtaskList taskId={task.id} />}
 
-      {/* Also add to Interview Prep — for new tasks, not when editing an existing one */}
-      {!task && (
+      {/* Also add to Interview Prep — for new tasks, not when editing an existing one.
+          Hidden entirely when Interview Prep is disabled in settings. */}
+      {!task && isTabEnabled(settings, 'interview') && (
         <div className="space-y-2.5 rounded-lg bg-surface-3 p-3 ring-1 ring-border">
           <label className="flex cursor-pointer items-center gap-2 text-[12px] font-medium">
             <input
@@ -333,16 +334,18 @@ export default function TaskEditor({ task, date, onSave, onClose }: TaskEditorPr
               >
                 {topics.map(t => <option key={t} value={t}>{topicLabel(t)}</option>)}
               </select>
-              <label className="flex cursor-pointer items-center gap-2 text-[11.5px] text-muted-foreground">
-                <input
-                  type="checkbox"
-                  checked={scheduleRevision}
-                  onChange={e => setScheduleRevision(e.target.checked)}
-                  className="h-3.5 w-3.5 rounded accent-[var(--primary)]"
-                />
-                Mark for revision
-                <span className="text-[10px] opacity-60">(spaced repetition after completion)</span>
-              </label>
+              {isTabEnabled(settings, 'revise') && (
+                <label className="flex cursor-pointer items-center gap-2 text-[11.5px] text-muted-foreground">
+                  <input
+                    type="checkbox"
+                    checked={scheduleRevision}
+                    onChange={e => setScheduleRevision(e.target.checked)}
+                    className="h-3.5 w-3.5 rounded accent-[var(--primary)]"
+                  />
+                  Mark for revision
+                  <span className="text-[10px] opacity-60">(spaced repetition after completion)</span>
+                </label>
+              )}
             </div>
           )}
         </div>
