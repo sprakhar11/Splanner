@@ -82,9 +82,12 @@ export default function HabitEditor({
         {/* Live preview, so the type and colour choices mean something. */}
         <div className="flex items-center gap-4 rounded-xl bg-surface-3 p-3 ring-1 ring-border">
           <div className="h-20 w-20 shrink-0">
+            {/* An existing habit shows its real state. A new one previews at
+                MATURE rather than its actual SEED, so the type and colour choice
+                is legible instead of a three-pixel sprout. */}
             <Plant
               plantType={plantType}
-              stage={habit?.state.stage ?? 'SPROUT'}
+              stage={habit?.state.stage ?? 'MATURE'}
               health={habit?.state.health ?? 'THRIVING'}
               color={color}
               className="h-full w-full"
