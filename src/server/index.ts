@@ -5,6 +5,7 @@ import { cors } from 'hono/cors'
 import { seedDatabase } from './db/seed'
 import { ensureSearchIndex } from './db/search-index'
 import { migrateInterviewItems } from './db/migrate-interview'
+import { ensureHabitTables } from './db/migrate-habits'
 import { topUpAllSeries } from './services/task-series'
 import { checkAndRollover, isRolloverPending } from './services/day-rollover'
 import { performAutoBackup } from './services/backup'
@@ -24,6 +25,7 @@ import reflectionsRoute from './routes/reflections'
 import settingsRoute from './routes/settings'
 import searchRoute from './routes/search'
 import backupRoute from './routes/backup'
+import habitsRoute from './routes/habits'
 
 // Startup tasks
 //
@@ -36,6 +38,7 @@ performAutoBackup()
 
 seedDatabase()
 migrateInterviewItems()
+ensureHabitTables()
 ensureSearchIndex()
 // Roll incomplete tasks from past days to today.
 checkAndRollover()
@@ -82,6 +85,7 @@ app.route('/api/reflections', reflectionsRoute)
 app.route('/api/settings', settingsRoute)
 app.route('/api/search', searchRoute)
 app.route('/api/backup', backupRoute)
+app.route('/api/habits', habitsRoute)
 
 const port = Number(process.env.PORT) || 3001
 

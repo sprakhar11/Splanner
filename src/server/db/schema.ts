@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, real, uniqueIndex } from 'drizzle-orm/sqlite-core'
 
 // ===== Categories =====
 export const categories = sqliteTable('categories', {
@@ -196,6 +196,34 @@ export const hrStoryTags = sqliteTable('hr_story_tags', {
   hrStoryId: text('hr_story_id').notNull().references(() => hrStories.id, { onDelete: 'cascade' }),
   tag: text('tag').notNull(),
 })
+
+// ===== Habits =====
+export const habits = sqliteTable('habits', {
+  id: text('id').primaryKey(),
+  title: text('title').notNull(),
+  plantType: text('plant_type').notNull().default('OAK'),
+  color: text('color'), // an --ev-* token name, nullable
+  archived: integer('archived', { mode: 'boolean' }).notNull().default(false),
+  position: integer('position').notNull().default(0),
+  createdAt: integer('created_at').notNull().$defaultFn(() => Date.now()),
+})
+
+/**
+ * One row per habit per day. Absence of a row means "not done" — there is no
+ * FAILED status, because after the day has passed those mean the same thing.
+ *
+ * The date is a *logical* day (see @shared/day), so a completion logged at 01:30
+ * lands on the day the user is still finishing rather than the calendar's.
+ */
+export const habitLogs = sqliteTable('habit_logs', {
+  id: text('id').primaryKey(),
+  habitId: text('habit_id').notNull().references(() => habits.id, { onDelete: 'cascade' }),
+  date: text('date').notNull(), // yyyy-MM-dd
+  status: text('status', { enum: ['COMPLETED', 'SKIPPED'] }).notNull(),
+  createdAt: integer('created_at').notNull().$defaultFn(() => Date.now()),
+}, t => ({
+  habitDayUnique: uniqueIndex('habit_logs_habit_date_idx').on(t.habitId, t.date),
+}))
 
 // ===== Settings (key-value) =====
 export const settings = sqliteTable('settings', {

@@ -58,9 +58,10 @@ function cleanupOldBackups() {
  */
 export function exportAsJson(): string {
   const data = {
-    // v2 adds interviewItems, notifications and taskRollovers. v1 files are
-    // still importable — every table is read with a presence check.
-    version: 2,
+    // v2 added interviewItems, notifications and taskRollovers.
+    // v3 adds habits and habitLogs.
+    // Older files are still importable — every table is read with a presence check.
+    version: 3,
     exportedAt: Date.now(),
     categories: db.select().from(schema.categories).all(),
     tasks: db.select().from(schema.tasks).all(),
@@ -77,6 +78,8 @@ export function exportAsJson(): string {
     studySessions: db.select().from(schema.studySessions).all(),
     notifications: db.select().from(schema.notifications).all(),
     taskRollovers: readTaskRollovers(),
+    habits: db.select().from(schema.habits).all(),
+    habitLogs: db.select().from(schema.habitLogs).all(),
     taskTags: db.select().from(schema.taskTags).all(),
     noteTags: db.select().from(schema.noteTags).all(),
     revisionItemTags: db.select().from(schema.revisionItemTags).all(),
@@ -141,6 +144,10 @@ export function importFromJson(jsonStr: string, mode: 'replace' | 'merge' = 'rep
       db.delete(schema.revisionItems).run()
       db.delete(schema.subtasks).run()
       db.delete(schema.notifications).run()
+      // Logs before habits: the FK cascades, but being explicit keeps the order
+      // meaningful if the cascade is ever dropped.
+      db.delete(schema.habitLogs).run()
+      db.delete(schema.habits).run()
       try { sqlite.exec('DELETE FROM task_rollovers') } catch {}
       db.delete(schema.reflections).run()
       db.delete(schema.dsaProblems).run()
@@ -202,6 +209,9 @@ export function importFromJson(jsonStr: string, mode: 'replace' | 'merge' = 'rep
     if (data.hrStories) insertBatch(schema.hrStories, data.hrStories)
     if (data.studySessions) insertBatch(schema.studySessions, data.studySessions)
     if (data.notifications) insertBatch(schema.notifications, data.notifications)
+    // Habits before their logs, which carry a FK to them.
+    if (data.habits) insertBatch(schema.habits, data.habits)
+    if (data.habitLogs) insertBatch(schema.habitLogs, data.habitLogs)
     if (data.taskRollovers) writeTaskRollovers(data.taskRollovers)
 
     // Junction tables (no primary key — simple insert)
