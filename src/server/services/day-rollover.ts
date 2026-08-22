@@ -20,45 +20,24 @@
 import { db, sqlite } from '../db/connection'
 import { tasks, settings } from '../db/schema'
 import { eq, and, lt, inArray, isNull } from 'drizzle-orm'
+import { logicalToday } from '../../shared/day'
 
 const ROLLOVER_KEY = 'lastRolloverDate'
 const ROLLOVER_HOUR_KEY = 'rolloverHour'
 
 /**
- * Returns the configured hour (0–23) at which the day "ends" for task movement.
- * Default is 0 (midnight). If a user studies until 2 AM, they can set this to 3
- * so incomplete tasks don't vanish while they're still working.
- */
-function getRolloverHour(): number {
-  const row = db.select().from(settings).where(eq(settings.key, ROLLOVER_HOUR_KEY)).get()
-  const n = Number(row?.value ?? '0')
-  return Number.isFinite(n) && n >= 0 && n <= 6 ? Math.floor(n) : 0
-}
-
-/**
  * The "logical today" for rollover purposes.
  *
- * If the current wall-clock time is before the rollover hour, we still consider
- * it "yesterday" — the user's day hasn't ended yet, so nothing should move.
- * Everything else in the app (task creation, calendar view, due dates) uses the
- * real date as always; only the rollover boundary shifts.
+ * The offset itself lives in `@shared/day` because the client needs the identical
+ * rule — a habit logged at 01:30 has to land on the same day as a task completed
+ * in the same minute. This function only supplies the stored setting.
+ *
+ * Everything else in the app (task creation, calendar rendering, due dates) uses
+ * the real date as always; only this boundary shifts.
  */
 function rolloverToday(): string {
-  const now = new Date()
-  const hour = getRolloverHour()
-  // Before the cutoff → still yesterday's "day"
-  if (hour > 0 && now.getHours() < hour) {
-    now.setDate(now.getDate() - 1)
-  }
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`
-}
-
-/** Server-local today as yyyy-MM-dd. */
-function todayISO() {
-  const d = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+  const row = db.select().from(settings).where(eq(settings.key, ROLLOVER_HOUR_KEY)).get()
+  return logicalToday(row?.value ?? 0)
 }
 
 /** Reads the last rollover date from the settings KV table. */
@@ -163,7 +142,13 @@ export function checkAndRollover(): RolloverResult {
 /** Exposed for the API: force a rollover check and return the result. */
 export function forceRollover(): RolloverResult {
   // Reset the flag so checkAndRollover actually runs.
-  const today = todayISO()
+  //
+  // This has to compare against the *logical* day, not the wall clock. Comparing
+  // against the wall clock made this a silent no-op inside the pre-cutoff window:
+  // the stored date was yesterday's logical day, the wall clock said today, they
+  // never matched, so the flag was left alone and checkAndRollover then found its
+  // own logical day already done and returned without doing anything.
+  const today = rolloverToday()
   const last = getLastRolloverDate()
   if (last === today) {
     // Even if "done", re-check in case tasks were added in the past after the rollover.
