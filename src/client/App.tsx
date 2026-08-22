@@ -21,6 +21,7 @@ import InterviewPrep from './pages/InterviewPrep'
 import Reflection from './pages/Reflection'
 import Settings from './pages/Settings'
 import Life from './pages/Life'
+import Habits from './pages/Habits'
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 30_000, retry: 1 } },
@@ -33,6 +34,7 @@ const SUBTITLES: Record<string, string> = {
   '/revise': 'Review what is due before it fades.',
   '/stats': 'Track consistency and interview readiness.',
   '/interview': 'DSA, system design, LLD, and behavioural prep.',
+  '/habits': 'Tend the garden. Small things, repeated.',
   '/life': 'Your life in weeks. Make them count.',
   '/reflection': 'Close the day with a short review.',
   '/settings': 'Personalise Splanner and manage your data.',
@@ -74,6 +76,7 @@ function Shell() {
                 <Route path="/interview" element={<InterviewPrep />} />
                 <Route path="/reflection" element={<Reflection />} />
                 <Route path="/settings" element={<Settings />} />
+                <Route path="/habits" element={<Habits />} />
                 <Route path="/life" element={<Life />} />
               </Routes>
             </motion.div>

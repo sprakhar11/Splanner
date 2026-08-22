@@ -4,6 +4,7 @@ import { ArrowRight, Brain, CheckCircle2, Clock, Flame, Target } from 'lucide-re
 import { useTasks } from '@client/hooks/useTasks'
 import { useRevisionsDue } from '@client/hooks/useRevisions'
 import { useSettings } from '@client/hooks/useSettings'
+import HabitStrip from '@client/components/habits/HabitStrip'
 import { getDailyQuote } from '@client/lib/constants'
 import { PRIORITY_COLOR, toISO } from '@client/lib/date'
 import { cn } from '@client/lib/utils'
@@ -76,6 +77,11 @@ export default function Dashboard() {
           <StatCard icon={Flame} label="Overdue" value={overdue} hint={overdue ? 'Needs attention' : 'All clear'} />
           <StatCard icon={Clock} label="Planned" value={`${Math.round(plannedMin / 60 * 10) / 10}h`} hint={`Goal ${goal}h`} />
         </div>
+
+        {/* Habits. Self-hiding when the tab is off or nothing is planted. */}
+        <motion.div variants={item}>
+          <HabitStrip />
+        </motion.div>
 
         {/* Two-column */}
         <div className="grid gap-3 lg:grid-cols-[1.4fr_1fr]">

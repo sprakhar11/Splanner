@@ -4,13 +4,16 @@ import { useTasks } from '@client/hooks/useTasks'
 import { useSettings } from '@client/hooks/useSettings'
 import { useReflections } from '@client/hooks/useAnalytics'
 import { useToast } from '@client/components/ui/toast'
-import { readSetting } from '@client/lib/settings'
+import { readSetting, isTabEnabled } from '@client/lib/settings'
+import { useGarden } from '@client/hooks/useHabits'
 import { todayISO, addDaysISO, timeLabel, relativeTime } from '@client/lib/date'
 
 const FIRED_KEY = 'splanner.firedReminders'
 const POLL_MS = 30_000
 /** Local hour after which an unwritten reflection is nudged. */
 const REFLECTION_NUDGE_HOUR = 20
+/** Earlier than the reflection nudge: a habit can still be done at 8pm. */
+const HABIT_NUDGE_HOUR = 19
 
 /** Reminders already surfaced, so a re-render or refresh does not re-alert. */
 function loadFired(): Record<string, number> {
@@ -63,18 +66,27 @@ export function useReminders() {
 
   // Read through a ref so toggling a setting does not restart the interval.
   const prefsRef = useRef({
-    osNotifications: true, taskReminders: true, overdueAlerts: true, reflectionNudge: true,
+    osNotifications: true, taskReminders: true, overdueAlerts: true,
+    reflectionNudge: true, habitNudge: true,
   })
   prefsRef.current = {
     osNotifications: readSetting(settings, 'notificationsEnabled'),
     taskReminders: readSetting(settings, 'taskReminders'),
     overdueAlerts: readSetting(settings, 'revisionReminders'),
     reflectionNudge: readSetting(settings, 'reflectionReminder'),
+    // Also off when the tab itself is disabled: no nudging about a hidden feature.
+    habitNudge: readSetting(settings, 'habitReminders') && isTabEnabled(settings, 'habit'),
   }
 
   const { data: reflections = [] } = useReflections()
   const reflectionsRef = useRef<any[]>(reflections)
   reflectionsRef.current = reflections
+
+  const { habits, today: habitToday } = useGarden()
+  const habitsRef = useRef(habits)
+  habitsRef.current = habits
+  const habitTodayRef = useRef(habitToday)
+  habitTodayRef.current = habitToday
 
   useEffect(() => {
     // If the setting says notifications are on but the browser was never asked,
@@ -145,6 +157,32 @@ export function useReminders() {
             action: { label: 'Write reflection', onClick: () => navigate('/reflection') },
           })
           if (prefs.osNotifications) notifyBrowser('Splanner', 'Write today\'s reflection')
+        }
+      }
+
+      // Evening nudge for habits still open, once per logical day.
+      //
+      // Keyed on the logical day rather than the wall clock, so someone with a
+      // late boundary is not nudged about a day they have already finished, and
+      // is not nudged twice when midnight passes mid-evening.
+      if (prefs.habitNudge && new Date(now).getHours() >= HABIT_NUDGE_HOUR) {
+        const day = habitTodayRef.current
+        const key = `habit:${day}`
+        const open = habitsRef.current.filter(h => h.state.todayStatus === null)
+        if (open.length > 0 && !fired[key]) {
+          fired[key] = now
+          changed = true
+          toast({
+            title: open.length === 1
+              ? `Still open: ${open[0].title}`
+              : `${open.length} habits still open`,
+            body: 'A short version still counts.',
+            tone: 'info',
+            action: { label: 'Open garden', onClick: () => navigate('/habits') },
+          })
+          if (prefs.osNotifications) {
+            notifyBrowser('Splanner habits', `${open.length} still open today`)
+          }
         }
       }
 

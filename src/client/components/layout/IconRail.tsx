@@ -4,25 +4,32 @@ import { motion, AnimatePresence } from 'motion/react'
 import {
   LayoutGrid, CalendarDays, Brain, BookOpen, BarChart3,
   Briefcase, Settings, Sunset, PanelLeftOpen, PanelLeftClose, Heart,
-  Eye, EyeOff,
+  Eye, EyeOff, Sprout,
 } from 'lucide-react'
 import { cn } from '@client/lib/utils'
 import { useSettings } from '@client/hooks/useSettings'
 import { getDisabledTabs } from '@client/lib/settings'
 
+/**
+ * `tabKey`, not `key`: these objects are spread into JSX, and a property named
+ * `key` is consumed by React as the element key instead of reaching the
+ * component. That silently overrode the real key with null on every entry that
+ * cannot be disabled, so several siblings shared a null key.
+ */
 const primary = [
-  { to: '/', label: 'Dashboard', icon: LayoutGrid, key: null },
-  { to: '/planner', label: 'Planner', icon: CalendarDays, key: null },
-  { to: '/revise', label: 'Revise', icon: Brain, key: 'revise' as const },
-  { to: '/journal', label: 'Journal', icon: BookOpen, key: null },
-  { to: '/stats', label: 'Stats', icon: BarChart3, key: 'stats' as const },
-  { to: '/interview', label: 'Interview Prep', icon: Briefcase, key: 'interview' as const },
-  { to: '/life', label: 'Life', icon: Heart, key: 'life' as const },
+  { to: '/', label: 'Dashboard', icon: LayoutGrid, tabKey: null },
+  { to: '/planner', label: 'Planner', icon: CalendarDays, tabKey: null },
+  { to: '/revise', label: 'Revise', icon: Brain, tabKey: 'revise' as const },
+  { to: '/journal', label: 'Journal', icon: BookOpen, tabKey: null },
+  { to: '/stats', label: 'Stats', icon: BarChart3, tabKey: 'stats' as const },
+  { to: '/interview', label: 'Interview Prep', icon: Briefcase, tabKey: 'interview' as const },
+  { to: '/habits', label: 'Habits', icon: Sprout, tabKey: 'habit' as const },
+  { to: '/life', label: 'Life', icon: Heart, tabKey: 'life' as const },
 ]
 
 const secondary = [
-  { to: '/settings', label: 'Settings', icon: Settings, key: null },
-  { to: '/reflection', label: 'Reflection', icon: Sunset, key: 'reflection' as const },
+  { to: '/settings', label: 'Settings', icon: Settings, tabKey: null },
+  { to: '/reflection', label: 'Reflection', icon: Sunset, tabKey: 'reflection' as const },
 ]
 
 const COLLAPSED_W = 68
@@ -197,7 +204,9 @@ export default function IconRail() {
         </div>
 
         <nav className={cn('flex flex-col gap-1', expanded ? 'items-stretch' : 'items-center')}>
-          {primary.filter(i => !i.key || !disabled.has(i.key)).map(i => <RailLink key={i.to} {...i} expanded={expanded} />)}
+          {primary
+            .filter(i => !i.tabKey || !disabled.has(i.tabKey))
+            .map(({ tabKey, ...i }) => <RailLink key={i.to} {...i} expanded={expanded} />)}
         </nav>
 
         <div className={cn('mt-auto flex flex-col gap-1 pt-4', expanded ? 'items-stretch' : 'items-center')}>
@@ -208,7 +217,9 @@ export default function IconRail() {
             active={blurred}
             onClick={toggleBlur}
           />
-          {secondary.filter(i => !i.key || !disabled.has(i.key)).map(i => <RailLink key={i.to} {...i} expanded={expanded} />)}
+          {secondary
+            .filter(i => !i.tabKey || !disabled.has(i.tabKey))
+            .map(({ tabKey, ...i }) => <RailLink key={i.to} {...i} expanded={expanded} />)}
         </div>
       </div>
     </motion.aside>

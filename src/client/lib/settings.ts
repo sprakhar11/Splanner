@@ -26,6 +26,7 @@ export const DEFAULTS = {
   focusPopOut: true,
   rolloverHour: 0,
   disabledTabs: '',
+  habitReminders: true,
 } as const
 
 /**
@@ -100,7 +101,7 @@ export function clampSetting(key: SettingKey, value: number): number {
 }
 
 /** Tabs that can be disabled from Settings. */
-export const OPTIONAL_TABS = ['revise', 'stats', 'life', 'interview', 'reflection'] as const
+export const OPTIONAL_TABS = ['revise', 'stats', 'life', 'interview', 'reflection', 'habit'] as const
 export type OptionalTab = typeof OPTIONAL_TABS[number]
 
 const TAB_LABELS: Record<OptionalTab, string> = {
@@ -109,6 +110,7 @@ const TAB_LABELS: Record<OptionalTab, string> = {
   life: 'Life',
   interview: 'Interview Prep',
   reflection: 'Reflection',
+  habit: 'Habits',
 }
 
 export function getTabLabel(tab: OptionalTab): string {

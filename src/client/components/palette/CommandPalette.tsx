@@ -4,11 +4,14 @@ import { useNavigate } from 'react-router-dom'
 import {
   Search, CornerDownLeft, ArrowUp, ArrowDown, Loader2,
   LayoutDashboard, CalendarDays, BookOpen, Brain, BarChart3, Briefcase,
-  Sparkles, SlidersHorizontal, Plus, Timer,
+  Sparkles, SlidersHorizontal, Plus, Timer, Sprout,
 } from 'lucide-react'
 import { useCommandPalette } from '@client/hooks/useCommandPalette'
 import { useSearch } from '@client/hooks/useSearch'
 import { useFocusTimer } from '@client/hooks/useFocusTimer'
+import { useSettings } from '@client/hooks/useSettings'
+import { useGarden, useLogHabit } from '@client/hooks/useHabits'
+import { isTabEnabled } from '@client/lib/settings'
 import {
   ROUTE_FOR, GROUP_LABEL, TYPE_COLOR, parseSnippet, filterCommands, groupHits, moveIndex,
   type SearchHit,
@@ -40,6 +43,11 @@ export default function CommandPalette() {
   const navigate = useNavigate()
   const { session, stop, start } = useFocusTimer()
 
+  const { data: settings } = useSettings()
+  const habitsEnabled = isTabEnabled(settings, 'habit')
+  const { habits, today: habitToday } = useGarden()
+  const logHabit = useLogHabit()
+
   const [query, setQuery] = useState('')
   const [active, setActive] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
@@ -66,6 +74,31 @@ export default function CommandPalette() {
 
   const commands = useMemo(() => {
     const base = [...COMMANDS]
+
+    // One command per habit still open today. Registered as ordinary commands so
+    // the existing substring filter finds them — typing "read" surfaces
+    // "Complete habit: Read 10 pages" with no new query syntax to learn.
+    if (habitsEnabled) {
+      base.push({
+        id: 'go-habits',
+        label: 'Go to Habits',
+        hint: 'the garden',
+        icon: Sprout,
+        run: c => c.navigate('/habits'),
+      })
+
+      for (const h of habits) {
+        if (h.state.todayStatus === 'COMPLETED') continue
+        base.push({
+          id: `habit-${h.id}`,
+          label: `Complete habit: ${h.title}`,
+          hint: h.state.currentStreak > 0 ? `${h.state.currentStreak} day streak` : 'no streak yet',
+          icon: Sprout,
+          run: () => { logHabit.mutate({ id: h.id, date: habitToday, status: 'COMPLETED' }) },
+        })
+      }
+    }
+
     // Offer stopping the timer only while one is running, and starting a bare
     // stopwatch only while one is not.
     if (session) {
@@ -88,7 +121,7 @@ export default function CommandPalette() {
       })
     }
     return filterCommands(base, query)
-  }, [query, session, stop, start])
+  }, [query, session, stop, start, habits, habitsEnabled, habitToday, logHabit])
 
   const grouped = useMemo(() => groupHits(hits as SearchHit[]), [hits])
 

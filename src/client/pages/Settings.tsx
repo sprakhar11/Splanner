@@ -186,6 +186,13 @@ export default function Settings() {
               label="Evening reflection nudge"
             />
           </Row>
+          <Row label="Habit nudge" hint="After 7pm, if any habit is still open today">
+            <Toggle
+              checked={draft.habitReminders}
+              onChange={v => set('habitReminders', v)}
+              label="Habit nudge"
+            />
+          </Row>
           <Row label="Day ends at" hint="Incomplete tasks move to tomorrow after this hour. Set later if you study at night.">
             <NumInput
               value={draft.rolloverHour}

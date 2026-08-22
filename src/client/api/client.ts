@@ -59,6 +59,20 @@ export const api = {
     delete: (id: string) => request<any>(`/revisions/${id}`, { method: 'DELETE' }),
   },
 
+  // Habits
+  habits: {
+    list: (includeArchived = false) =>
+      request<any[]>(`/habits${includeArchived ? '?includeArchived=true' : ''}`),
+    get: (id: string) => request<any>(`/habits/${id}`),
+    create: (data: any) => request<any>('/habits', { method: 'POST', body: JSON.stringify(data) }),
+    update: (id: string, data: any) => request<any>(`/habits/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+    /** `status: null` clears the day. */
+    log: (id: string, date: string, status: string | null) =>
+      request<any>(`/habits/${id}/log`, { method: 'POST', body: JSON.stringify({ date, status }) }),
+    archive: (id: string) => request<any>(`/habits/${id}`, { method: 'DELETE' }),
+    remove: (id: string) => request<any>(`/habits/${id}?hard=true`, { method: 'DELETE' }),
+  },
+
   // Categories
   categories: {
     list: () => request<any[]>('/categories'),
